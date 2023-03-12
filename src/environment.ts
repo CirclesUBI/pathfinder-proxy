@@ -7,7 +7,6 @@ export class Environment {
     console.log("");
 
     console.log("PORT: " + Environment.port);
-
     console.log("CORS_ORIGINS: ");
     Environment.corsOrigins.map(o => o.toString()).forEach(o => console.log("* " + o));
 
@@ -26,15 +25,15 @@ export class Environment {
     return getEnvVarOrThrow("PORT");
   }
 
-  static get corsOrigins() : URL[] {
+  static get corsOrigins() : string[] {
     return getUrlListFromEnvOrThrow("CORS_ORIGINS");
   }
 
-  static get upstreamServiceEndpoints() : URL[] {
+  static get upstreamServiceEndpoints() : string[] {
     return getUrlListFromEnvOrThrow("UPSTREAM_SERVICE_ENDPOINTS");
   }
 
-  static get upstreamHealthEndpoints() : URL[] {
+  static get upstreamHealthEndpoints() : string[] {
     return getUrlListFromEnvOrThrow("UPSTREAM_HEALTH_ENDPOINTS");
   }
 }

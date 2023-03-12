@@ -6,10 +6,25 @@ import {StatisticsLogger} from "./statistics/statisticsLogger";
 import {MethodFilter} from "./filter/methodFilter";
 import {StatisticsQueries} from "./statistics/statisticsQueries";
 import {Environment} from "./environment";
+import {getRandomHexNumber, isEthereumAddress} from "./utils";
+import cors from "cors";
 
 Environment.validateAndSummarize();
 
 const app = express();
+const corsOptions = {
+origin: function (requestOrigin: string | undefined, callback: (err: Error | null, origin?: boolean) => void) {
+  console.log("CORS request from origin: ", requestOrigin);
+  console.log(Environment.corsOrigins.map(o => o.toString()));
+    if (Environment.corsOrigins.map(o => o.toString()).indexOf(requestOrigin ?? "") >= 0) {
+      callback(null, true)
+    } else {
+      callback(new Error('Invalid CORS origin'))
+    }
+  }
+}
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const upstreamPool = new UpstreamPool(5000, 1000);
@@ -77,9 +92,44 @@ app.get('/', (req, res) => {
   res.send(statusString);
 });
 
-app.post('/', async (req, res) => {
+app.post('/flow', cors(), async (req, res) => {
   try {
     const call = await req.body;
+    console.log(`/flow: Received request from origin ${req.header("origin")}: `, call);
+    const from = call.from;
+    const to = call.to;
+    const value = call.value;
+
+    if (!isEthereumAddress(from)
+        || !isEthereumAddress(to)
+        || typeof value !== 'string'
+        || value.length > 78
+        || !/^\d+$/.test(value)) {
+      res.status(400).send('Invalid "from" or "to" address or "value"');
+      return;
+    }
+
+    const response = await upstreamPool.dispatchRoundRobin({
+      "id": getRandomHexNumber(),
+      "method": "compute_transfer",
+      "params": {
+        from: from,
+        to: to,
+        value: value
+      }
+    });
+    res.send(response);
+  } catch (e) {
+    // return 500
+    console.error(e);
+    res.status(500).send(e);
+  }
+});
+
+app.post('/', cors(), async (req, res) => {
+  try {
+    const call = await req.body;
+    console.log(`Received request from origin ${req.header("origin")}: `, call);
     const canPass = filter.canPass(call);
     if (!canPass) {
       res.status(400).send('RPC method not allowed');
@@ -95,5 +145,5 @@ app.post('/', async (req, res) => {
 });
 
 app.listen(Environment.port, () => {
-  console.log(`Example app listening on port ${Environment.port}`)
+  console.log(`pathfinder-proxy is listening on port ${Environment.port}`)
 });
